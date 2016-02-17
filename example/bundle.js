@@ -19726,11 +19726,11 @@
 
 	'use strict';
 
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
 	Object.defineProperty(exports, "__esModule", {
 		value: true
 	});
+
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 	var _react = __webpack_require__(1);
 
@@ -20001,6 +20001,10 @@
 
 				'use strict';
 
+				Object.defineProperty(exports, "__esModule", {
+					value: true
+				});
+
 				var _createClass = function () {
 					function defineProperties(target, props) {
 						for (var i = 0; i < props.length; i++) {
@@ -20010,10 +20014,6 @@
 						if (protoProps) defineProperties(Constructor.prototype, protoProps);if (staticProps) defineProperties(Constructor, staticProps);return Constructor;
 					};
 				}();
-
-				Object.defineProperty(exports, "__esModule", {
-					value: true
-				});
 
 				var _react = __webpack_require__(2);
 
@@ -20074,12 +20074,19 @@
 						_this._mouseDownData = null;
 						_this._registry = [];
 
+						// Used to prevent actions from firing twice on devices that are both click and touch enabled
+						_this._mouseDownStarted = false;
+						_this._mouseMoveStarted = false;
+						_this._mouseUpStarted = false;
+
 						_this._openSelector = _this._openSelector.bind(_this);
 						_this._mouseDown = _this._mouseDown.bind(_this);
 						_this._mouseUp = _this._mouseUp.bind(_this);
 						_this._selectElements = _this._selectElements.bind(_this);
 						_this._registerSelectable = _this._registerSelectable.bind(_this);
 						_this._unregisterSelectable = _this._unregisterSelectable.bind(_this);
+						_this._desktopEventCoords = _this._desktopEventCoords.bind(_this);
+
 						return _this;
 					}
 
@@ -20097,6 +20104,7 @@
 						key: 'componentDidMount',
 						value: function componentDidMount() {
 							_reactDom2.default.findDOMNode(this).addEventListener('mousedown', this._mouseDown);
+							_reactDom2.default.findDOMNode(this).addEventListener('touchstart', this._mouseDown);
 						}
 
 						/**	 
@@ -20107,6 +20115,7 @@
 						key: 'componentWillUnmount',
 						value: function componentWillUnmount() {
 							_reactDom2.default.findDOMNode(this).removeEventListener('mousedown', this._mouseDown);
+							_reactDom2.default.findDOMNode(this).removeEventListener('touchstart', this._mouseDown);
 						}
 					}, {
 						key: '_registerSelectable',
@@ -20129,6 +20138,13 @@
 					}, {
 						key: '_openSelector',
 						value: function _openSelector(e) {
+							var _this2 = this;
+
+							if (this._mouseMoveStarted) return;
+							this._mouseMoveStarted = true;
+
+							e = this._desktopEventCoords(e);
+
 							var w = Math.abs(this._mouseDownData.initialW - e.pageX);
 							var h = Math.abs(this._mouseDownData.initialH - e.pageY);
 
@@ -20138,6 +20154,8 @@
 								boxHeight: h,
 								boxLeft: Math.min(e.pageX, this._mouseDownData.initialW),
 								boxTop: Math.min(e.pageY, this._mouseDownData.initialH)
+							}, function () {
+								_this2._mouseMoveStarted = false;
 							});
 						}
 
@@ -20149,11 +20167,18 @@
 					}, {
 						key: '_mouseDown',
 						value: function _mouseDown(e) {
+							if (this._mouseDownStarted) return;
+							this._mouseDownStarted = true;
+							this._mouseUpStarted = false;
+
+							e = this._desktopEventCoords(e);
+
 							var node = _reactDom2.default.findDOMNode(this);
 							var collides = undefined,
 							    offsetData = undefined,
 							    distanceData = undefined;
 							_reactDom2.default.findDOMNode(this).addEventListener('mouseup', this._mouseUp);
+							_reactDom2.default.findDOMNode(this).addEventListener('touchend', this._mouseUp);
 
 							// Right clicks
 							if (e.which === 3 || e.button === 2) return;
@@ -20184,6 +20209,7 @@
 							e.preventDefault();
 
 							_reactDom2.default.findDOMNode(this).addEventListener('mousemove', this._openSelector);
+							_reactDom2.default.findDOMNode(this).addEventListener('touchmove', this._openSelector);
 						}
 
 						/**
@@ -20193,8 +20219,14 @@
 					}, {
 						key: '_mouseUp',
 						value: function _mouseUp(e) {
+							if (this._mouseUpStarted) return;
+							this._mouseUpStarted = true;
+							this._mouseDownStarted = false;
+
 							_reactDom2.default.findDOMNode(this).removeEventListener('mousemove', this._openSelector);
 							_reactDom2.default.findDOMNode(this).removeEventListener('mouseup', this._mouseUp);
+							_reactDom2.default.findDOMNode(this).removeEventListener('touchmove', this._openSelector);
+							_reactDom2.default.findDOMNode(this).removeEventListener('touchend', this._mouseUp);
 
 							if (!this._mouseDownData) return;
 
@@ -20228,6 +20260,22 @@
 							});
 
 							this.props.onSelection(currentItems);
+						}
+
+						/**
+	      * Used to return event object with desktop (non-touch) format of event 
+	      * coordinates, regardless of whether the action is from mobile or desktop.
+	      */
+
+					}, {
+						key: '_desktopEventCoords',
+						value: function _desktopEventCoords(e) {
+							if (e.pageX == undefined || e.pageY == undefined) {
+								// Touch-device
+								e.pageX = e.targetTouches[0].pageX;
+								e.pageY = e.targetTouches[0].pageY;
+							}
+							return e;
 						}
 
 						/**
@@ -20438,6 +20486,10 @@
 
 				'use strict';
 
+				Object.defineProperty(exports, "__esModule", {
+					value: true
+				});
+
 				var _createClass = function () {
 					function defineProperties(target, props) {
 						for (var i = 0; i < props.length; i++) {
@@ -20447,10 +20499,6 @@
 						if (protoProps) defineProperties(Constructor.prototype, protoProps);if (staticProps) defineProperties(Constructor, staticProps);return Constructor;
 					};
 				}();
-
-				Object.defineProperty(exports, "__esModule", {
-					value: true
-				});
 
 				var _react = __webpack_require__(2);
 
